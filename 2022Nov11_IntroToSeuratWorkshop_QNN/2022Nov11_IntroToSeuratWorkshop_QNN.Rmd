@@ -49,7 +49,7 @@ library(patchwork)
 
 Input data = Non-normalized UMI count matrix from RNA-seq of 2,700 single PBMCs from 10X cellranger pipeline
 
-To download (then unzip) the input data, please visit https://cf.10xgenomics.com/samples/cell/pbmc3k/pbmc3k_filtered_gene_bc_matrices.tar.gz
+Please direct to "/filtered_gene_bc_matrices/hg19" from your download of https://github.com/denvercal1234GitHub/learntoRfromNothing
 
 ```{r}
 # Load the PBMC dataset, containing matrix.mtx; barcodes.tsv; genes.tsv
