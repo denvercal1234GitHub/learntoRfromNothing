@@ -45,6 +45,7 @@ library(patchwork)
 
 ```
 
+
 # LOAD INPUT DATA
 
 Input data = Non-normalized UMI count matrix from RNA-seq of 2,700 single PBMCs from 10X cellranger pipeline
@@ -60,14 +61,15 @@ dim(pbmc.data)
 
 ***Granulysin:*** Cytolytic and proinflammatory molecule first identified by a screen for genes expressed ‘late’ (3–5 days) after activation of human peripheral blood mononuclear cells. Granulysin is present in cytolytic granules of cytotoxic T lymphocytes and natural killer cells (https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2679253/)
 
-***MS4A1 (CD20):*** This gene encodes a B-lymphocyte surface molecule which plays a role in the development and differentiation of B-cells into plasma cells (https://www.proteinatlas.org/ENSG00000156738-MS4A1)
+***CXCR3:*** is a chemokine receptor that is highly expressed on effector T cells and plays an important role in T cell trafficking and function. CXCR3 is rapidly induced on naïve cells following activation and preferentially remains highly expressed on Th1-type CD4+ T cells and effector CD8+ T cells. Early studies demonstrated a role for CXCR3 in the trafficking of Th1 and CD8 T cells to peripheral sites of Th1-type inflammation and the establishment on Th1 amplification loop mediated by IFNγ and the IFNγ-inducible CXCR3 ligands (https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3065205/)
 
 ```{r}
 # Quick check if your genes of interest are detected at all
 
-interesting_genes <- c("CD3E","CD4", "CD8A","MS4A1","GNLY") 
+interesting_genes <- c("CXCR3","GNLY", "GZMB", "FOXP3", "CTLA4", "S1PR2") 
 
 interesting_genes %in% rownames(pbmc.data)
+
 ```
 
 
@@ -81,16 +83,17 @@ Performing rowMeans on that matrix returns the number of cells with a count > 0 
 Performing rowSums on that matrix returns the total number of cells having a detectable expression for that gene
 
 ```{r}
-#3 is the number of cells at or below which 60% of the genes got detected
-quantile((Matrix::rowSums(pbmc.data>0)), probs = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9))
-```
-
-```{r}
 #log10(quantile((Matrix::rowSums(pbmc.data>0)), probs = 0.6))
 #When logging count data, the + 1 is used to avoid log10(0) which is not defined
 hist(log10((Matrix::rowSums(pbmc.data>0))+1), main=expression("Many genes epxressed in less than n = log"^"-1"*""[10]*"(0.48) ~ 3 cells"), col='wheat', labels=FALSE, ylab = "Frequency of genes", xlab = "Number of cells with positive expression for every gene")  
 abline(v=log10(quantile((Matrix::rowSums(pbmc.data>0)), probs = 0.6)), col = "red", lty=2, lwd = 2)
 
+```
+
+
+```{r}
+#3 is the number of cells at or below which 60% of the genes got detected
+quantile((Matrix::rowSums(pbmc.data>0)), probs = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9))
 ```
 
 
@@ -111,55 +114,32 @@ pbmc
 ```
 
 
+## QC removed genes-containing cells
+
 ```{r}
 dim(pbmc.data)
 ```
 
+```{r}
+interesting_genes %in% rownames(pbmc)
+```
+
+
+```{r}
+table(pbmc.data["FOXP3", ])
+```
+
+
+```{r}
+pbmc_noMinCells <- CreateSeuratObject(counts = pbmc.data, names.delim = "-", names.field = 2)
+
+interesting_genes %in% rownames(pbmc_noMinCells)
+
+WhichCells(pbmc_noMinCells, expression = `FOXP3` > 0)
+```
+
 
 # FILTER CELLS
-
-## nFeatures threshold
-
-The number of unique genes detected in each cell (nFeatures).
-1. Too low nFeatures = Low-quality cells or empty droplets 
-2. Too high nFeatures = Cell doublets or multiplets 
-
-***Total number of molecules detected within a cell (nCounts) correlates strongly with nFeatures***
-
-min.features parameter or setting threshold for nFeatures (library complexity) helps filter out cells likely have random barcodes encapsulated without any cell present. Usually, cells with less than 100 genes detected are filtered out.
-
-This threshold varies with cell type, e.g., higher threshold is appropriate for brain cells than PBMCs that can go up to 600 genes/cell!
-
-For high quality data, the proportional histogram should contain a single large peak that represents cells that were encapsulated. 
-***If we see a small shoulder to the left of the major peak, or a bimodal distribution of the cells:***
-1. Cells that failed for some reason. 
-2. There are biologically different types of cells (i.e. quiescent cell populations, less complex cells of interest), and/or one type is much smaller in size than the other (i.e. cells with high counts may be cells that are larger in size). ***Therefore, this threshold should be assessed with other metrics that we describe in this lesson.***
-
-```{r}
-# Count the gene as 1 only if it has non-zero reads mapped (this is not summing the values)
-numberofgenes_per_cell <- Matrix::colSums(pbmc.data>0) 
-
-#summary(numberofgenes_per_cell)
-
-# When logging count data, the + 1 is used to avoid log10(0) which is not defined
-hist(log10(numberofgenes_per_cell+1), main='Log number of expressed genes per cell', col='wheat')
-```
-
-
-```{r}
-#nFeature
-#quantile(pbmc@meta.data[,3], na.rm=TRUE, probs = c(0.000001, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97, 0.98, 0.99))
-
-summary(pbmc@meta.data[,3])
-```
-
-
-```{r}
-?VlnPlot
-VlnPlot(pbmc, features = "nFeature_RNA", cols = "green") + 
-  scale_y_log10 (breaks= seq(0, 2500, by = 500)) + 
-  geom_hline(yintercept=c(2500, 200), linetype="dashed", color = "blue") + labs(caption = "Thresholds (200, 2500)")
-```
 
 ## percent.mt threshold
 
@@ -186,6 +166,15 @@ pbmc <- PercentageFeatureSet(pbmc, pattern = "^MT-", col.name="percent.mt")
 quantile(pbmc@meta.data[,4], na.rm=TRUE, probs = c(0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97, 0.98, 0.99))
 ```
 
+```{r}
+summary(pbmc@meta.data[,4])
+```
+
+
+```{r}
+VlnPlot(pbmc, "percent.mt", cols = "green") + geom_hline(yintercept=c(5), linetype="dashed", color = "blue") + labs(caption = "Thresholds = 5%")
+```
+
 
 ```{r}
 # Visualize the distribution of mitochondrial gene expression detected per cell
@@ -197,19 +186,29 @@ pbmc@meta.data %>%
   	geom_vline(xintercept = 5)
 ```
 
-## Visualize combined QC metrics
+
+## EXERCISE: Why this nFeatures threshold?
+
+***Information:*** 
+Very high nFeatures = multiplets
+
+***Tools:***
+quantile()
+
+summary()
+
+VlnPlot(), ggplot() 
+
+FeatureScatter(object, feature1 = "", feature2 = "") + 
+    geom_vline(xintercept = int) +
+  	geom_hline(yintercept = int)
+    
+***Your task:***
+Decide and defend your group's selected threshold for nFeature
+
 
 ```{r}
-FeatureScatter(pbmc, feature1 = "percent.mt", feature2 = "nFeature_RNA") + 
-    geom_vline(xintercept = 5) +
-  	geom_hline(yintercept = c(200, 2500)) +
-    labs(title="Very high percent.mt cells\n have very low nFeatures") + NoLegend() -> p1
 
-FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "nFeature_RNA") +
-  	geom_hline(yintercept = c(200, 2500)) +
-    labs(title="nFeature and nCount are correlated") + NoLegend() -> p2
-
-p1+p2
 ```
 
 
@@ -222,7 +221,6 @@ length(WhichCells(pbmc, expression = nFeature_RNA <= 200 | nFeature_RNA >= 2500 
 
 ```{r}
 pbmc <- subset(pbmc, subset = nFeature_RNA > 200 & nFeature_RNA < 2500 & percent.mt < 5)
-
 ```
 
 
@@ -292,6 +290,7 @@ pbmc@meta.data %>%
   	theme(plot.title = element_text(hjust=0.5, face="bold")) +
   	ggtitle("Number of cells")
 ```
+
 
 # AUTOMATED QC METHOD
 
@@ -455,7 +454,10 @@ DimPlot(pbmc_postNormalize,
 FeaturePlot(pbmc_postNormalize, features = "percent.mt") + theme(plot.title = element_text(size=10)) 
 ```
 
-# CLUSTER ANNOTATION 
+
+
+
+# CLUSTER ANNOTATION
 
 ```{r}
 plot <- DimPlot(pbmc_postNormalize, reduction = "umap")
@@ -463,6 +465,7 @@ plot <- DimPlot(pbmc_postNormalize, reduction = "umap")
 cluster4_Cells <- CellSelector(plot = plot)
 
 ```
+
 FindMarkers output a data.frame with a ranked list of putative markers as rows, and associated statistics as columns (p-values, ROC score, etc., depending on the test used (test.use)). The following columns are always present:
 
 avg_logFC: log fold-chage of the average expression between the two groups. Positive values indicate that the gene is more highly expressed in the first group
@@ -476,7 +479,6 @@ p_val_adj: Adjusted p-value, based on bonferroni correction using all genes in t
 ```{r}
 #Idents(pbmc_postNormalize, cells = cluster4_Cells) <- "NewCells"
 
-?FindMarkers
 cluster4_DEGs <- FindMarkers(pbmc_postNormalize, ident.1 = "4")
 
 cluster4_DEGs
@@ -484,11 +486,33 @@ cluster4_DEGs
 ```
 
 ```{r}
-VlnPlot(pbmc_postNormalize, features = interesting_genes)
+VlnPlot(pbmc_postNormalize, features = "MS4A1")
 ```
 
 ```{r}
 FeaturePlot(pbmc_postNormalize, features =  c( "MS4A1", "CD79B"), blend=T) 
 ```
 
+
+# MEGA EXERCISE: Are there more CD8 or CD4 T cells in PBMCs?
+
+***Information:*** PBMCs
+
+***Tools:*** 
+
+VlnPlot()
+
+DimPlot()
+
+FindMarker()
+
+length()
+
+WhichCells()
+
+***Tasks:***Tell us whether CD8 T cells are more than CD4 T cells in number.
+
+```{r}
+
+```
 
