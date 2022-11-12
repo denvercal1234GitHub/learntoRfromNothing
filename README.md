@@ -22,5 +22,6 @@ Please subscribe to my YouTube channel (https://www.youtube.com/c/QNNDukeNguyen)
 Hope it help you get started with coding in R!
 
 Cheers.
+
 Best, Quang
 
